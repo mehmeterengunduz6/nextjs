@@ -9,7 +9,13 @@ import {
 } from './definitions';
 import { formatCurrency } from './utils';
 
-const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
+const sql = postgres(process.env.POSTGRES_URL!, {
+  ssl: 'require',
+  max: 1, // Use a single connection
+  idle_timeout: 20, // Close idle connections after 20 seconds
+  connect_timeout: 10, // Connection timeout of 10 seconds
+  prepare: false // Disable prepared statements
+});
 
 export async function fetchRevenue() {
   try {
@@ -91,6 +97,7 @@ export async function fetchFilteredInvoices(
   currentPage: number,
 ) {
   const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+  const searchPattern = `%${query}%`;
 
   try {
     const invoices = await sql<InvoicesTable[]>`
@@ -105,11 +112,11 @@ export async function fetchFilteredInvoices(
       FROM invoices
       JOIN customers ON invoices.customer_id = customers.id
       WHERE
-        customers.name ILIKE ${`%${query}%`} OR
-        customers.email ILIKE ${`%${query}%`} OR
-        invoices.amount::text ILIKE ${`%${query}%`} OR
-        invoices.date::text ILIKE ${`%${query}%`} OR
-        invoices.status ILIKE ${`%${query}%`}
+        customers.name ILIKE ${searchPattern} OR
+        customers.email ILIKE ${searchPattern} OR
+        invoices.amount::text ILIKE ${searchPattern} OR
+        invoices.date::text ILIKE ${searchPattern} OR
+        invoices.status ILIKE ${searchPattern}
       ORDER BY invoices.date DESC
       LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}
     `;
